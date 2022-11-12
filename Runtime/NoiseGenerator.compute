@@ -1,0 +1,137 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Noiser1
+#pragma kernel Noiser2
+#pragma kernel Noiser3
+#pragma kernel Noiser4
+#include "cnoise4.hlsl"
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+float4 seed;
+float4 resolution;
+float lacunarity  = 0.5;
+int octaves = 2;
+float persistence = 0.55;
+static const float PI = 3.14159265358979;
+static const float TWO_PI = PI * 2.0;
+static const float addition = 0.5; //0.25;
+RWStructuredBuffer<float> dummyBuffer;
+
+
+float rand(float n){
+    return frac(sin(n) * 43758.5453123);
+}
+
+float getNoise(float2 uv, float scale, float2 mySeed, float aspect)
+{
+    float scaleTimesAspect = aspect * scale;
+
+    float x1 = -scaleTimesAspect + mySeed.x;
+    float x2 = scaleTimesAspect + mySeed.x;
+
+    float y1 = -scale + mySeed.y;
+    float y2 = scale + mySeed.y;
+
+    float dxPi = (x2-x1)/TWO_PI;
+    float dyPi = (y2-y1)/TWO_PI;
+
+    float s2pi = uv.x * TWO_PI;
+    float t2pi = uv.y * TWO_PI;
+
+    float nx = x1 + cos(s2pi) * dxPi;
+    float ny = y1 + cos(t2pi) * dyPi;
+    float nz = x1 + sin(s2pi) * dxPi;
+    float nw = y1 + sin(t2pi) * dyPi;
+                                      
+    float r = cnoise(float4(nx, ny, nz, nw));
+    return r + addition;
+}
+
+float OctavePerlin(float2 uv, int octaveNum, float myPersistence, float2 mySeed, float aspect)
+{
+    float total = 0.0;
+    float frequency = lacunarity;
+    float amp = 1.0;
+    float maxValue = 0.0;  // Used for normalizing result to 0.0 - 1.0
+
+    for(int i = 0; i < octaveNum; ++i)
+    {
+        total += getNoise(uv, frequency, mySeed, aspect) * amp;
+
+        maxValue += amp;
+
+        amp *= myPersistence;
+        frequency *= 2.0;
+    }
+
+    return total/maxValue;
+}
+
+[numthreads(8,8,1)]
+void Noiser1(uint3 id : SV_DispatchThreadID)
+{
+    float2 uv = float2((float)(id.x) / resolution.x, (float)(id.y) / resolution.y);
+    float aspect = (float)resolution.x / resolution.y;
+
+    float2 mySeed = seed.xy;
+    float2 rn = mySeed;
+
+    float r = OctavePerlin(uv, octaves, persistence, rn, aspect);
+
+    Result[id.xy] = float4(r,0.0,0.0,1.0);
+}
+
+[numthreads(8,8,1)]
+void Noiser2(uint3 id : SV_DispatchThreadID)
+{
+    float2 uv = float2((float)(id.x) / resolution.x, (float)(id.y) / resolution.y);
+    float aspect = (float)resolution.x / resolution.y;
+    
+    float2 mySeed = seed.xy;
+    float2 rn = mySeed;
+    float2 gn = mySeed + PI*2.;
+
+    float r = OctavePerlin(uv, octaves, persistence, rn, aspect);
+    float g = OctavePerlin(uv, octaves, persistence, gn, aspect);
+
+    Result[id.xy] = float4(r,g,0.0,1.0);
+}
+
+[numthreads(8,8,1)]
+void Noiser3(uint3 id : SV_DispatchThreadID)
+{
+    float2 uv = float2((float)(id.x) / resolution.x, (float)(id.y) / resolution.y);
+    float aspect = (float)resolution.x / resolution.y;
+    
+    float2 mySeed = seed.xy;
+    float2 rn = mySeed;
+    float2 gn = mySeed + TWO_PI;
+    float2 bn = mySeed + TWO_PI * 2.0;
+
+    float r = OctavePerlin(uv, octaves, persistence, rn, aspect);
+    float g = OctavePerlin(uv, octaves, persistence, gn, aspect);
+    float b = OctavePerlin(uv, octaves, persistence, bn, aspect);
+
+    Result[id.xy] = float4(r,g,b,1.0);
+}
+
+[numthreads(8,8,1)]
+void Noiser4(uint3 id : SV_DispatchThreadID)
+{
+    float2 uv = float2((float)(id.x) / resolution.x, (float)(id.y) / resolution.y);
+    float aspect = (float)resolution.x / resolution.y;
+    
+    float2 mySeed = seed.xy;
+    float2 rn = mySeed;
+    float2 gn = mySeed + PI*2.;
+    float2 bn = mySeed + PI*4.;
+    float2 an = mySeed + PI*6.;
+
+    float r = OctavePerlin(uv, octaves, persistence, rn, aspect);
+    float g = OctavePerlin(uv, octaves, persistence, gn, aspect);
+    float b = OctavePerlin(uv, octaves, persistence, bn, aspect);
+    float a = OctavePerlin(uv, octaves, persistence, an, aspect);
+
+    Result[id.xy] = float4(r,g,b,a);
+}
