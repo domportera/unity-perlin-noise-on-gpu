@@ -1,0 +1,3 @@
+[submodule "Runtime/hlsl"]
+	path = Runtime/hlsl
+	url = https://github.com/domportera/hlsl-noise.git
